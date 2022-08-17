@@ -28,6 +28,8 @@ struct vec2
 struct Seed
 {
     vec2 pos;
+    vec2 vel;
+    int r;
     unsigned int color;
 };
 
@@ -82,10 +84,18 @@ void draw_circle(SDL_Surface* surface, vec2 pos, int r, u32 color)
     }
 }
 
+std::array<unsigned int, 10> palette;
+
+std::array<Seed, 10> seeds;
 
 SDL_Surface* render_shit()
 {
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, WINDOW_WIDTH, WINDOW_HEIGHT, 32, SDL_PIXELFORMAT_RGBA8888);
+    SDL_Surface* surface =
+        SDL_CreateRGBSurfaceWithFormat(0,
+                                       WINDOW_WIDTH,
+                                       WINDOW_HEIGHT, 
+                                       32, 
+                                       SDL_PIXELFORMAT_RGBA8888);
 
     if (!surface)
     {
@@ -99,53 +109,32 @@ SDL_Surface* render_shit()
         std::exit(1);
     }
 
-    std::array<unsigned int, 10> palette;
-    /*
-    palette[0] = 0xffce0bff;
-    palette[1] = 0xe83f68ff;
-    palette[2] = 0xab3e8fff;
-    palette[3] = 0x0092d6ff;
-    palette[4] = 0x00a989ff;
+    
+    auto& seed = seeds[0];
 
-    palette[0] = 0x8385a6ff;
-    palette[1] = 0xb3c9dfff;
-    palette[2] = 0xc5d6e7ff;
-    palette[3] = 0xa4a7d7ff;
-    palette[4] = 0x92b2d3ff;
-    palette[5] = 0xc90076ff;
-    palette[6] = 0x7fc900ff;
-    palette[7] = 0x00c9aeff;
-    palette[8] = 0xc9c300ff;
-    palette[9] = 0xc97300ff;
-    */
+    seed.pos.x += seed.vel.x;
+    seed.pos.y += seed.vel.y;
 
-    palette[0] = 0x705041ff;
-    palette[1] = 0xcd5b45ff;
-    palette[2] = 0xfbd870ff;
-    palette[3] = 0x208f3fff;
-    palette[4] = 0x2590c6ff;
-
-    palette[5] = 0xf3c681ff;
-    palette[6] = 0x1279c8ff;
-    palette[7] = 0xe53939ff;
-    palette[8] = 0x68a247ff;
-    palette[9] = 0x14c5b6ff;
-
-    std::array<Seed, 10> seeds;
-
-    for (auto it = seeds.begin();
-         it != seeds.end();
-         ++it)
+    if (seed.pos.x + seed.r > WINDOW_WIDTH)
     {
-        it->pos.x = rand_between(0, WINDOW_WIDTH);
-        it->pos.y = rand_between(0, WINDOW_HEIGHT);
-#if 0
-        auto index = rand_between(0, palette.size() - 1);
-#else
-        auto index = seeds.end() - it - 1;
-#endif
-        it->color = palette[index];
+        seed.pos.x = WINDOW_WIDTH - seed.r;
+        seed.vel.x *= -1;
     }
+    if (seed.pos.x - seed.r < 0)
+    {
+        seed.pos.x = 0;
+        seed.vel.x *= -1;
+    }
+
+
+    if (seed.pos.y + (seed.r) > WINDOW_HEIGHT or
+        seed.pos.y + (seed.r) < 0)
+    {
+        seed.vel.y *= -1;
+    }
+
+    seed.pos.x += seed.vel.x;
+    seed.pos.y += seed.vel.y;
 
     auto pixels = static_cast<unsigned int*>(surface->pixels);
     for (int r = 0; r < surface->h; ++r)
@@ -153,18 +142,20 @@ SDL_Surface* render_shit()
         for (int c = 0; c < surface->w; ++c)
         {
             vec2 a = {.x = c, .y = r};
-            vec2& b = seeds.begin()->pos;
+            vec2* b = &seeds.begin()->pos;
 
             //auto nearest = len(a - b);
-            auto nearest = std::abs(a.x - b.x) + std::abs(a.y - b.y);
+            auto nearest = std::abs(a.x - b->x) + std::abs(a.y - b->y);
             Seed* nearest_seed = &seeds[0];
 
             for (auto it = seeds.begin() + 1;
                  it != seeds.end();
                  ++it)
             {
+                b = &it->pos;
                 //auto l = len(a - it->pos);
-                auto l = std::abs(a.x - it->pos.x) + std::abs(a.y - it->pos.y);
+                auto l = std::abs(a.x - b->x) + std::abs(a.y - b->y);
+                //auto l = (std::powl(a.x - b->x, 2)) + std::powl((a.y - b->y), 2);
                 if (l < nearest)
                 {
                     nearest = l;
@@ -178,10 +169,9 @@ SDL_Surface* render_shit()
         }
     }
 
-
     for (const auto& seed : seeds)
     {
-        draw_circle(surface, seed.pos, 5, 0x000000ff);
+        draw_circle(surface, seed.pos, seed.r, 0x000000ff);
     }
 
     SDL_UnlockSurface(surface);
@@ -191,6 +181,42 @@ SDL_Surface* render_shit()
 
 int main()
 {
+    palette[0] = 0x705041ff;
+    palette[1] = 0xcd5b45ff;
+    palette[2] = 0xfbd870ff;
+    palette[3] = 0x208f3fff;
+    palette[4] = 0x2590c6ff;
+
+    palette[5] = 0xf3c681ff;
+    palette[6] = 0x1279c8ff;
+    palette[7] = 0xe53939ff;
+    palette[8] = 0x68a247ff;
+    palette[9] = 0x14c5b6ff;
+
+    for (auto it = seeds.begin();
+         it != seeds.end();
+         ++it)
+    {
+        it->pos.x = rand_between(0, WINDOW_WIDTH);
+        it->pos.y = rand_between(0, WINDOW_HEIGHT);
+
+        it->vel.x = 0;
+        it->vel.y = 0;
+
+        it->r = 5;
+#if 0
+        auto index = rand_between(0, palette.size() - 1);
+#else
+        auto index = seeds.end() - it - 1;
+#endif
+        it->color = palette[index];
+    }
+
+    seeds[0].pos.x = 200;
+    seeds[0].pos.y = 200;
+    seeds[0].vel.x = 10;
+    seeds[0].vel.y = 0;// 12;
+
     SDL_SetMainReady();
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -259,10 +285,15 @@ int main()
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderClear(renderer);
 
+        SDL_FreeSurface(surface);
+        SDL_DestroyTexture(texture);
+        surface = render_shit();
+        texture = SDL_CreateTextureFromSurface(renderer, surface);
+
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
 
-        SDL_Delay(20);
+        SDL_Delay(10);
     }
 
     return 0;
