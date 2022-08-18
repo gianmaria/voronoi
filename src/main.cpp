@@ -55,10 +55,8 @@ int rand_between(int min, int max)
     return distrib(gen);
 }
 
-void draw_circle(SDL_Surface* surface, vec2 pos, int r, u32 color)
+void draw_circle(SDL_Renderer* renderer, vec2 pos, int r, u32 color)
 {
-    auto pixels = static_cast<unsigned int*>(surface->pixels);
-
     vec2 top_left{.x = pos.x - r, .y = pos.y + r};
     vec2 bottom_right{.x = pos.x + r, .y = pos.y - r};
 
@@ -74,72 +72,57 @@ void draw_circle(SDL_Surface* surface, vec2 pos, int r, u32 color)
 
             if (len(point - pos) < static_cast<unsigned>(r * r))
             {
-                int index = y * surface->w + x;
-                if (index < 0 or index >(WINDOW_WIDTH * WINDOW_HEIGHT))
-                    continue;
-
-                pixels[index] = color; // RRGGBBAA
+                uint8_t* col = reinterpret_cast<uint8_t*>(&color);
+                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
+                SDL_RenderDrawPoint(renderer, x, y);
             }
         }
     }
 }
 
-std::array<unsigned int, 10> palette;
 
-std::array<Seed, 10> seeds;
-
-SDL_Surface* render_shit()
+void render_voronoi(SDL_Renderer* renderer)
 {
-    SDL_Surface* surface =
-        SDL_CreateRGBSurfaceWithFormat(0,
-                                       WINDOW_WIDTH,
-                                       WINDOW_HEIGHT, 
-                                       32, 
-                                       SDL_PIXELFORMAT_RGBA8888);
+    std::array<u32, 10> palette;
+    palette[0] = 0x705041ff;
+    palette[1] = 0xcd5b45ff;
+    palette[2] = 0xfbd870ff;
+    palette[3] = 0x208f3fff;
+    palette[4] = 0x2590c6ff;
 
-    if (!surface)
+    palette[5] = 0xf3c681ff;
+    palette[6] = 0x1279c8ff;
+    palette[7] = 0xe53939ff;
+    palette[8] = 0x68a247ff;
+    palette[9] = 0x14c5b6ff;
+
+    std::array<Seed, 10> seeds;
+    for (auto it = seeds.begin();
+         it != seeds.end();
+         ++it)
     {
-        cout << "[ERROR] cannot create surface: " << SDL_GetError() << endl;
-        std::exit(1);
+        it->pos.x = rand_between(0, WINDOW_WIDTH);
+        it->pos.y = rand_between(0, WINDOW_HEIGHT);
+
+        it->vel.x = 0;
+        it->vel.y = 0;
+
+        it->r = 5;
+#if 0
+        auto index = rand_between(0, palette.size() - 1);
+#else
+        auto index = seeds.end() - it - 1;
+#endif
+        it->color = palette[index];
     }
 
-    if (SDL_LockSurface(surface) != 0)
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    auto start = SDL_GetTicks64();
+    for (int r = 0; r < WINDOW_HEIGHT; ++r)
     {
-        cout << "[ERROR] cannot lock surface: " << SDL_GetError() << endl;
-        std::exit(1);
-    }
-
-    
-    auto& seed = seeds[0];
-
-    seed.pos.x += seed.vel.x;
-    seed.pos.y += seed.vel.y;
-
-    if (seed.pos.x + seed.r > WINDOW_WIDTH)
-    {
-        seed.pos.x = WINDOW_WIDTH - seed.r;
-        seed.vel.x *= -1;
-    }
-    if (seed.pos.x - seed.r < 0)
-    {
-        seed.pos.x = 0;
-        seed.vel.x *= -1;
-    }
-
-
-    if (seed.pos.y + (seed.r) > WINDOW_HEIGHT or
-        seed.pos.y + (seed.r) < 0)
-    {
-        seed.vel.y *= -1;
-    }
-
-    seed.pos.x += seed.vel.x;
-    seed.pos.y += seed.vel.y;
-
-    auto pixels = static_cast<unsigned int*>(surface->pixels);
-    for (int r = 0; r < surface->h; ++r)
-    {
-        for (int c = 0; c < surface->w; ++c)
+        for (int c = 0; c < WINDOW_WIDTH; ++c)
         {
             vec2 a = {.x = c, .y = r};
             vec2* b = &seeds.begin()->pos;
@@ -164,59 +147,27 @@ SDL_Surface* render_shit()
                 }
             }
 
-            int index = r * surface->w + c;
-            pixels[index] = nearest_seed->color; // RRGGBBAA
+            uint8_t* col = reinterpret_cast<uint8_t*>(&nearest_seed->color);
+            SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
+            SDL_RenderDrawPoint(renderer, c, r);
         }
     }
 
     for (const auto& seed : seeds)
     {
-        draw_circle(surface, seed.pos, seed.r, 0x000000ff);
+        draw_circle(renderer, seed.pos, seed.r, 0x000000ff);
     }
+    auto end = SDL_GetTicks64();
+    
+    SDL_RenderPresent(renderer);
 
-    SDL_UnlockSurface(surface);
-
-    return surface;
+    auto elapsed_ms = end - start;
+    cout << "render_shit() took: " << elapsed_ms << " ms\n";
 }
+
 
 int main()
 {
-    palette[0] = 0x705041ff;
-    palette[1] = 0xcd5b45ff;
-    palette[2] = 0xfbd870ff;
-    palette[3] = 0x208f3fff;
-    palette[4] = 0x2590c6ff;
-
-    palette[5] = 0xf3c681ff;
-    palette[6] = 0x1279c8ff;
-    palette[7] = 0xe53939ff;
-    palette[8] = 0x68a247ff;
-    palette[9] = 0x14c5b6ff;
-
-    for (auto it = seeds.begin();
-         it != seeds.end();
-         ++it)
-    {
-        it->pos.x = rand_between(0, WINDOW_WIDTH);
-        it->pos.y = rand_between(0, WINDOW_HEIGHT);
-
-        it->vel.x = 0;
-        it->vel.y = 0;
-
-        it->r = 5;
-#if 0
-        auto index = rand_between(0, palette.size() - 1);
-#else
-        auto index = seeds.end() - it - 1;
-#endif
-        it->color = palette[index];
-    }
-
-    seeds[0].pos.x = 200;
-    seeds[0].pos.y = 200;
-    seeds[0].vel.x = 10;
-    seeds[0].vel.y = 0;// 12;
-
     SDL_SetMainReady();
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -245,25 +196,18 @@ int main()
         std::exit(1);
     }
 
-    SDL_Surface* surface = render_shit();
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-    if (!texture)
-    {
-        cout << "[ERROR] cannot create texture: " << SDL_GetError() << endl;
-        std::exit(1);
-    }
+    render_voronoi(renderer);
 
     bool done = false;
-
     while (!done)
     {
         SDL_Event e = {};
-        while (SDL_PollEvent(&e))
+        while (SDL_WaitEvent(&e))
         {
             if (e.type == SDL_QUIT)
             {
                 done = true;
+                break;
             }
             else if (e.type == SDL_KEYUP)
             {
@@ -271,29 +215,16 @@ int main()
                     e.key.keysym.sym == SDLK_ESCAPE)
                 {
                     done = true;
+                    break;
                 }
                 else if (e.key.keysym.sym == SDLK_F5)
                 {
-                    SDL_FreeSurface(surface);
-                    SDL_DestroyTexture(texture);
-                    surface = render_shit();
-                    texture = SDL_CreateTextureFromSurface(renderer, surface);
+                    render_voronoi(renderer);
                 }
             }
         }
-
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderClear(renderer);
-
-        SDL_FreeSurface(surface);
-        SDL_DestroyTexture(texture);
-        surface = render_shit();
-        texture = SDL_CreateTextureFromSurface(renderer, surface);
-
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
-        SDL_RenderPresent(renderer);
-
-        SDL_Delay(10);
+        
+        //SDL_Delay(10);
     }
 
     return 0;
