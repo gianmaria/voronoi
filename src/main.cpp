@@ -4,12 +4,14 @@
 #include <cstddef>
 #include <iostream>
 #include <random>
+#include <string>
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 
 using std::cout;
 using std::endl;
+using std::string;
 
 using u32 = uint32_t;
 using u64 = uint64_t;
@@ -80,6 +82,22 @@ void draw_circle(SDL_Renderer* renderer, vec2 pos, int r, u32 color)
     }
 }
 
+struct Timer
+{
+    Timer(const string& name) :name(name)
+    {
+        begin = SDL_GetTicks64();
+    }
+    ~Timer()
+    {
+        Uint64 end = SDL_GetTicks64();
+        Uint64 elapsed_ms = end - begin;
+        cout << name << " took: " << elapsed_ms << "ms" << endl;
+    }
+
+    Uint64 begin;
+    string name;
+};
 
 void render_voronoi(SDL_Renderer* renderer)
 {
@@ -116,53 +134,52 @@ void render_voronoi(SDL_Renderer* renderer)
         it->color = palette[index];
     }
 
-    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
     SDL_RenderClear(renderer);
 
-    auto start = SDL_GetTicks64();
-    for (int r = 0; r < WINDOW_HEIGHT; ++r)
     {
-        for (int c = 0; c < WINDOW_WIDTH; ++c)
+        Timer t("render voronoi");
+
+        for (int r = 0; r < WINDOW_HEIGHT / 1; ++r)
         {
-            vec2 a = {.x = c, .y = r};
-            vec2* b = &seeds.begin()->pos;
-
-            //auto nearest = len(a - b);
-            auto nearest = std::abs(a.x - b->x) + std::abs(a.y - b->y);
-            Seed* nearest_seed = &seeds[0];
-
-            for (auto it = seeds.begin() + 1;
-                 it != seeds.end();
-                 ++it)
+            for (int c = 0; c < WINDOW_WIDTH / 1; ++c)
             {
-                b = &it->pos;
-                //auto l = len(a - it->pos);
-                auto l = std::abs(a.x - b->x) + std::abs(a.y - b->y);
-                //auto l = (std::powl(a.x - b->x, 2)) + std::powl((a.y - b->y), 2);
-                if (l < nearest)
-                {
-                    nearest = l;
-                    auto index = seeds.end() - it;
-                    nearest_seed = &seeds[index];
-                }
-            }
+                vec2 a = {.x = c, .y = r};
+                vec2* b = &seeds[0].pos;
 
-            uint8_t* col = reinterpret_cast<uint8_t*>(&nearest_seed->color);
-            SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
-            SDL_RenderDrawPoint(renderer, c, r);
+                //auto nearest = len(a - b);
+                auto shortest_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
+                Seed* nearest_seed = &seeds[0];
+
+                for (size_t i = 1;
+                     i < seeds.size();
+                     ++i)
+                {
+                    b = &seeds[i].pos;
+                    //auto l = len(a - it->pos);
+                    auto current_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
+                    //auto l = (std::powl(a.x - b->x, 2)) + std::powl((a.y - b->y), 2);
+                    if (current_len < shortest_len)
+                    {
+                        shortest_len = current_len;
+                        nearest_seed = &seeds[i];
+                    }
+                }
+
+                uint8_t* col = reinterpret_cast<uint8_t*>(&nearest_seed->color);
+                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
+                SDL_RenderDrawPoint(renderer, c, r);
+
+            }
+        }
+
+        for (const auto& seed : seeds)
+        {
+            draw_circle(renderer, seed.pos, seed.r, 0x000000ff);
         }
     }
 
-    for (const auto& seed : seeds)
-    {
-        draw_circle(renderer, seed.pos, seed.r, 0x000000ff);
-    }
-    auto end = SDL_GetTicks64();
-    
     SDL_RenderPresent(renderer);
-
-    auto elapsed_ms = end - start;
-    cout << "render_shit() took: " << elapsed_ms << " ms\n";
 }
 
 
@@ -223,7 +240,7 @@ int main()
                 }
             }
         }
-        
+
         //SDL_Delay(10);
     }
 
