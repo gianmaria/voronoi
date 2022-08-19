@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <string>
+#include <thread>
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
@@ -15,10 +16,6 @@ using std::string;
 
 using u32 = uint32_t;
 using u64 = uint64_t;
-
-constexpr int WINDOW_WIDTH = 800;
-constexpr int WINDOW_HEIGHT = 600;
-constexpr int NO_FLAGS = 0;
 
 
 struct Timer
@@ -37,7 +34,6 @@ struct Timer
     Uint64 begin;
     string name;
 };
-
 
 struct vec2
 {
@@ -67,6 +63,26 @@ struct Seed
 };
 
 
+constexpr int WINDOW_WIDTH  = 800;
+constexpr int WINDOW_HEIGHT = 600;
+constexpr int NO_FLAGS = 0;
+
+static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
+
+constexpr std::array<u32, 10> palette = {
+    0x705041ff,
+    0xcd5b45ff,
+    0xfbd870ff,
+    0x208f3fff,
+    0x2590c6ff,
+    0xf3c681ff,
+    0x1279c8ff,
+    0xe53939ff,
+    0x14c5b6ff,
+    0x68a247ff
+};
+
+std::array<Seed, 10> seeds;
 
 
 int rand_between(int min, int max)
@@ -77,114 +93,176 @@ int rand_between(int min, int max)
     return distrib(gen);
 }
 
-void draw_circle(SDL_Renderer* renderer, vec2 pos, int r, u32 color)
+void draw_circle(vec2 pos, int r, u32 color)
 {
-    vec2 top_left{.x = pos.x - r, .y = pos.y + r};
-    vec2 bottom_right{.x = pos.x + r, .y = pos.y - r};
+    SDL_Rect rect = {
+        .x = pos.x - r,
+        .y = pos.y - r,
+        .w = r * 2,
+        .h = r * 2
+    };
+
+    if (rect.y < 0)
+        rect.y = 0;
+    if (rect.y + rect.h > WINDOW_HEIGHT)
+        rect.h = WINDOW_HEIGHT - rect.y;
+
+    if (rect.x < 0)
+        rect.x = 0;
+    if (rect.x + rect.w > WINDOW_WIDTH)
+        rect.w = WINDOW_WIDTH - rect.x;
 
     u32 r2 = static_cast<u32>(r * r);
 
-    for (int y = top_left.y;
-         y > bottom_right.y;
-         --y)
+    for (int y = rect.y;
+         y < rect.h + rect.y;
+         ++y)
     {
-        for (int x = top_left.x;
-             x < bottom_right.x + r;
+        for (int x = rect.x;
+             x < rect.w + rect.x;
              ++x)
         {
             vec2 point{.x = x, .y = y};
 
             if (vec2::len(point - pos) < r2)
             {
-                uint8_t* col = reinterpret_cast<uint8_t*>(&color);
-                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
-                SDL_RenderDrawPoint(renderer, x, y);
+                pixels[y][x] = color;
             }
         }
     }
 }
 
-void render_voronoi(SDL_Renderer* renderer)
+void init_seeds()
 {
-    std::array<u32, 10> palette;
-    palette[0] = 0x705041ff;
-    palette[1] = 0xcd5b45ff;
-    palette[2] = 0xfbd870ff;
-    palette[3] = 0x208f3fff;
-    palette[4] = 0x2590c6ff;
-
-    palette[5] = 0xf3c681ff;
-    palette[6] = 0x1279c8ff;
-    palette[7] = 0xe53939ff;
-    palette[8] = 0x68a247ff;
-    palette[9] = 0x14c5b6ff;
-
-    std::array<Seed, 10> seeds;
-    for (auto it = seeds.begin();
-         it != seeds.end();
-         ++it)
+    for (size_t i = 0;
+         i < seeds.size();
+         ++i)
     {
-        it->pos.x = rand_between(0, WINDOW_WIDTH);
-        it->pos.y = rand_between(0, WINDOW_HEIGHT);
+        auto& seed = seeds[i];
+        seed.pos.x = rand_between(0, WINDOW_WIDTH);
+        seed.pos.y = rand_between(0, WINDOW_HEIGHT);
 
-        it->vel.x = 0;
-        it->vel.y = 0;
+        seed.vel.x = 0;
+        seed.vel.y = 0;
 
-        it->r = 5;
+        seed.r = 5;
 #if 0
         auto index = rand_between(0, palette.size() - 1);
 #else
-        auto index = seeds.end() - it - 1;
+        auto index = i;
 #endif
-        it->color = palette[index];
+        seed.color = palette[index];
+    }
+}
+
+void render_voronoi_helper(const SDL_Rect& region)
+{
+    // top-left -> 0, 0
+    // y increasing towards bottom
+#if 1
+
+    for (int y = region.y;
+         y < region.h + region.y;
+         ++y)
+    {
+        for (int x = region.x;
+             x < region.w + region.x;
+             ++x)
+        {
+            vec2 a = {.x = x, .y = y};
+            vec2* b = &seeds[0].pos;
+
+            //auto nearest = len(a - b);
+            auto shortest_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
+            Seed* nearest_seed = &seeds[0];
+
+            for (size_t i = 1;
+                 i < seeds.size();
+                 ++i)
+            {
+                b = &seeds[i].pos;
+                //auto l = len(a - it->pos);
+                auto current_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
+                //auto l = (std::powl(a.x - b->x, 2)) + std::powl((a.y - b->y), 2);
+                if (current_len < shortest_len)
+                {
+                    shortest_len = current_len;
+                    nearest_seed = &seeds[i];
+                }
+            }
+
+            pixels[y][x] = nearest_seed->color;
+        }
     }
 
-    SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
-    SDL_RenderClear(renderer);
+
+    for (const auto& seed : seeds)
+    {
+        draw_circle(seed.pos, seed.r, 0x000000ff);
+    }
+#endif // 0
+
+}
+
+void render_voronoi(SDL_Renderer* renderer, SDL_Texture* texture)
+{
+    init_seeds();
+
+    //memset(pixels, 0xcc, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
 
     {
         Timer t("render voronoi");
+        std::array<std::thread, 2> threads;
 
-        for (int r = 0; r < WINDOW_HEIGHT / 1; ++r)
+        for (size_t i = 0;
+             i < threads.size();
+             ++i)
         {
-            for (int c = 0; c < WINDOW_WIDTH / 1; ++c)
-            {
-                vec2 a = {.x = c, .y = r};
-                vec2* b = &seeds[0].pos;
+            SDL_Rect region;
+            region.x = 0;
+            region.y = WINDOW_HEIGHT / threads.size() * i;
+            region.w = WINDOW_WIDTH;
+            region.h = WINDOW_HEIGHT / threads.size();
 
-                //auto nearest = len(a - b);
-                auto shortest_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
-                Seed* nearest_seed = &seeds[0];
-
-                for (size_t i = 1;
-                     i < seeds.size();
-                     ++i)
-                {
-                    b = &seeds[i].pos;
-                    //auto l = len(a - it->pos);
-                    auto current_len = std::abs(a.x - b->x) + std::abs(a.y - b->y);
-                    //auto l = (std::powl(a.x - b->x, 2)) + std::powl((a.y - b->y), 2);
-                    if (current_len < shortest_len)
-                    {
-                        shortest_len = current_len;
-                        nearest_seed = &seeds[i];
-                    }
-                }
-
-                uint8_t* col = reinterpret_cast<uint8_t*>(&nearest_seed->color);
-                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
-                SDL_RenderDrawPoint(renderer, c, r);
-
-            }
+            threads[i] = std::thread(render_voronoi_helper, region);
         }
 
-        for (const auto& seed : seeds)
+        /*render_voronoi_helper({.x = 0,
+                              .y = WINDOW_HEIGHT / 4 * 0,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 1,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 2,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 3,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});*/
+
+        for (auto& thread : threads)
         {
-            draw_circle(renderer, seed.pos, seed.r, 0x000000ff);
+            if (thread.joinable())
+                thread.join();
         }
+
     }
 
-    SDL_RenderPresent(renderer);
+    {
+        //Timer t("drawing texture business");
+
+        SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
+        SDL_RenderClear(renderer);
+
+        SDL_UpdateTexture(texture, NULL, pixels, WINDOW_WIDTH * 4);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+        SDL_RenderPresent(renderer);
+
+    }
 }
 
 
@@ -218,7 +296,12 @@ int main()
         std::exit(1);
     }
 
-    render_voronoi(renderer);
+    SDL_Texture* texture = SDL_CreateTexture(renderer,
+                                             SDL_PIXELFORMAT_RGBA8888,
+                                             SDL_TEXTUREACCESS_STREAMING,
+                                             WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    render_voronoi(renderer, texture);
 
     bool done = false;
     while (!done)
@@ -241,7 +324,7 @@ int main()
                 }
                 else if (e.key.keysym.sym == SDLK_F5)
                 {
-                    render_voronoi(renderer);
+                    render_voronoi(renderer, texture);
                 }
             }
         }
