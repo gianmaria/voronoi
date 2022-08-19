@@ -37,12 +37,19 @@ struct Timer
 
 struct vec2
 {
-    int x;
-    int y;
+    float x;
+    float y;
 
     static u32 len(const vec2& vec)
     {
         return static_cast<u32>(vec.x * vec.x + vec.y * vec.y);
+    }
+
+    vec2& operator+=(const vec2& other)
+    {
+        x += other.x;
+        y += other.y;
+        return *this;
     }
 };
 
@@ -54,12 +61,28 @@ vec2 operator-(const vec2& lhs, const vec2& rhs)
     return res;
 }
 
+vec2 operator+(const vec2& lhs, const vec2& rhs)
+{
+    vec2 res{};
+    res.x = lhs.x + rhs.x;
+    res.y = lhs.y + rhs.y;
+    return res;
+}
+
+vec2 operator*(const vec2& a, float val)
+{
+    vec2 res{};
+    res.x = a.x * val;
+    res.y = a.y * val;
+    return res;
+}
+
 struct Seed
 {
     vec2 pos;
     vec2 vel;
-    int r;
-    unsigned int color;
+    float r;
+    u32 color;
 };
 
 
@@ -67,11 +90,14 @@ constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
 constexpr int THREAD_COUNT = 4;
+constexpr int PITCH = WINDOW_WIDTH * 4;
 
 static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
 
+constexpr u32 COLOR_BLACK = 0x000000ff;
+
 constexpr std::array<u32, 10> palette = {
-    0x705041ff,
+    {0x705041ff,
     0xcd5b45ff,
     0xfbd870ff,
     0x208f3fff,
@@ -80,7 +106,7 @@ constexpr std::array<u32, 10> palette = {
     0x1279c8ff,
     0xe53939ff,
     0x14c5b6ff,
-    0x68a247ff
+    0x68a247ff}
 };
 
 std::array<Seed, 10> seeds;
@@ -94,23 +120,23 @@ int rand_between(int min, int max)
     return distrib(gen);
 }
 
-void draw_circle(vec2 pos, int r, u32 color)
+void draw_circle(vec2 pos, float r, u32 color)
 {
     SDL_Rect rect = {
-        .x = pos.x - r,
-        .y = pos.y - r,
-        .w = r * 2,
-        .h = r * 2
+        .x = static_cast<int>(pos.x - r),
+        .y = static_cast<int>(pos.y - r),
+        .w = static_cast<int>(r * 2.0f),
+        .h = static_cast<int>(r * 2.0f)
     };
 
     if (rect.y < 0)
         rect.y = 0;
-    if (rect.y + rect.h > WINDOW_HEIGHT)
+    else if (rect.y + rect.h > WINDOW_HEIGHT)
         rect.h = WINDOW_HEIGHT - rect.y;
 
     if (rect.x < 0)
         rect.x = 0;
-    if (rect.x + rect.w > WINDOW_WIDTH)
+    else if (rect.x + rect.w > WINDOW_WIDTH)
         rect.w = WINDOW_WIDTH - rect.x;
 
     u32 r2 = static_cast<u32>(r * r);
@@ -123,7 +149,11 @@ void draw_circle(vec2 pos, int r, u32 color)
              x < rect.w + rect.x;
              ++x)
         {
-            vec2 point{.x = x, .y = y};
+            vec2 point
+            {
+                .x = static_cast<float>(x), 
+                .y = static_cast<float>(y)
+            };
 
             if (vec2::len(point - pos) < r2)
             {
@@ -133,20 +163,20 @@ void draw_circle(vec2 pos, int r, u32 color)
     }
 }
 
-void init_seeds()
+void randomize_seeds()
 {
     for (size_t i = 0;
          i < seeds.size();
          ++i)
     {
         auto& seed = seeds[i];
-        seed.pos.x = rand_between(0, WINDOW_WIDTH);
-        seed.pos.y = rand_between(0, WINDOW_HEIGHT);
+        seed.pos.x = static_cast<float>(rand_between(0, WINDOW_WIDTH));
+        seed.pos.y = static_cast<float>(rand_between(0, WINDOW_HEIGHT));
 
         seed.vel.x = 0;
         seed.vel.y = 0;
 
-        seed.r = 5;
+        seed.r = 5.0f;
 #if 0
         auto index = rand_between(0, palette.size() - 1);
 #else
@@ -154,6 +184,41 @@ void init_seeds()
 #endif
         seed.color = palette[index];
     }
+
+    seeds[0].pos.x = 70.0f;
+    seeds[0].pos.y = 100.0f;
+    seeds[0].vel.x = 100.0f;
+    seeds[0].vel.y = 0.0f;
+    seeds[0].r = 5.0f;
+}
+
+void update_seed_position(float dt)
+{
+    Seed& seed = seeds[0];
+    seed.pos += seed.vel * dt;
+
+    if (seed.pos.x + seed.r > WINDOW_WIDTH)
+    {
+        seed.pos.x = WINDOW_WIDTH - seed.r;
+        seed.vel.x *= -1;
+    }
+    else if (seed.pos.x - seed.r < 0)
+    {
+        seed.pos.x = 0 + seed.r;
+        seed.vel.x *= -1;
+    }
+
+    if (seed.pos.y + seed.r > WINDOW_HEIGHT)
+    {
+        seed.pos.y = WINDOW_HEIGHT - seed.r;
+        seed.vel.y *= -1;
+    }
+    else if (seed.pos.y - seed.r < 0)
+    {
+        seed.pos.y = 0 + seed.r;
+        seed.vel.y *= -1;
+    }
+
 }
 
 void render_voronoi_helper(const SDL_Rect& region)
@@ -169,7 +234,10 @@ void render_voronoi_helper(const SDL_Rect& region)
              x < region.w + region.x;
              ++x)
         {
-            vec2 a = {.x = x, .y = y};
+            vec2 a {
+                .x = static_cast<float>(x), 
+                .y = static_cast<float>(y)
+            };
             vec2* b = &seeds[0].pos;
 
             //auto nearest = len(a - b);
@@ -198,11 +266,11 @@ void render_voronoi_helper(const SDL_Rect& region)
 
     for (const auto& seed : seeds)
     {
-        draw_circle(seed.pos, seed.r, 0x000000ff);
+        draw_circle(seed.pos, seed.r, COLOR_BLACK);
     }
 }
 
-void render_voronoi(SDL_Renderer* renderer, SDL_Texture* texture)
+void render_voronoi()
 {
     std::array<std::thread, THREAD_COUNT> threads;
 
@@ -261,13 +329,18 @@ int main()
                                              SDL_PIXELFORMAT_RGBA8888,
                                              SDL_TEXTUREACCESS_STREAMING,
                                              WINDOW_WIDTH, WINDOW_HEIGHT);
-    init_seeds();
+    randomize_seeds();
 
-    render_voronoi(renderer, texture);
+    render_voronoi();
 
     bool done = false;
+    bool pause = false;
+    float dt = 0.3f;
+
     while (!done)
     {
+        auto begin = SDL_GetTicks64();
+
         SDL_Event e = {};
         while (SDL_PollEvent(&e))
         {
@@ -286,22 +359,33 @@ int main()
                 }
                 else if (e.key.keysym.sym == SDLK_F5)
                 {
-                    render_voronoi(renderer, texture);
+                    randomize_seeds();
+                }
+                else if (e.key.keysym.sym == SDLK_SPACE)
+                {
+                    pause = !pause;
                 }
             }
         }
 
-        render_voronoi(renderer, texture);
+        if (!pause)
+        {
+            update_seed_position(dt);
+
+            render_voronoi();
+        }
 
         SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
         SDL_RenderClear(renderer);
 
-        SDL_UpdateTexture(texture, NULL, pixels, WINDOW_WIDTH * 4);
+        SDL_UpdateTexture(texture, NULL, pixels, PITCH);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
 
         SDL_RenderPresent(renderer);
-
-        SDL_Delay(30);
+        
+        //SDL_Delay(300);
+        auto end = SDL_GetTicks64();
+        dt = static_cast<float>(end - begin) / 1000.0f; // in sec
     }
 
     return 0;
