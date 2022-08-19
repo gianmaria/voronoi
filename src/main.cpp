@@ -74,7 +74,7 @@ struct Seed
     vec2 pos;
     vec2 vel;
     int r;
-    unsigned int color;
+    u32 color;
 };
 
 
@@ -85,6 +85,8 @@ constexpr int THREAD_COUNT = 4;
 constexpr int PITCH = WINDOW_WIDTH * 4;
 
 static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
+
+constexpr u32 COLOR_BLACK = 0x000000ff;
 
 constexpr std::array<u32, 10> palette = {
     0x705041ff,
@@ -121,12 +123,12 @@ void draw_circle(vec2 pos, int r, u32 color)
 
     if (rect.y < 0)
         rect.y = 0;
-    if (rect.y + rect.h > WINDOW_HEIGHT)
+    else if (rect.y + rect.h > WINDOW_HEIGHT)
         rect.h = WINDOW_HEIGHT - rect.y;
 
     if (rect.x < 0)
         rect.x = 0;
-    if (rect.x + rect.w > WINDOW_WIDTH)
+    else if (rect.x + rect.w > WINDOW_WIDTH)
         rect.w = WINDOW_WIDTH - rect.x;
 
     u32 r2 = static_cast<u32>(r * r);
@@ -249,7 +251,7 @@ void render_voronoi_helper(const SDL_Rect& region)
 
     for (const auto& seed : seeds)
     {
-        draw_circle(seed.pos, seed.r, 0x000000ff);
+        draw_circle(seed.pos, seed.r, COLOR_BLACK);
     }
 }
 
