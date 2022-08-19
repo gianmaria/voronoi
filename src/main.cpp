@@ -37,8 +37,8 @@ struct Timer
 
 struct vec2
 {
-    int x;
-    int y;
+    float x;
+    float y;
 
     static u32 len(const vec2& vec)
     {
@@ -69,11 +69,19 @@ vec2 operator+(const vec2& lhs, const vec2& rhs)
     return res;
 }
 
+vec2 operator*(const vec2& a, float val)
+{
+    vec2 res{};
+    res.x = a.x * val;
+    res.y = a.y * val;
+    return res;
+}
+
 struct Seed
 {
     vec2 pos;
     vec2 vel;
-    int r;
+    float r;
     u32 color;
 };
 
@@ -89,7 +97,7 @@ static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
 constexpr u32 COLOR_BLACK = 0x000000ff;
 
 constexpr std::array<u32, 10> palette = {
-    0x705041ff,
+    {0x705041ff,
     0xcd5b45ff,
     0xfbd870ff,
     0x208f3fff,
@@ -98,7 +106,7 @@ constexpr std::array<u32, 10> palette = {
     0x1279c8ff,
     0xe53939ff,
     0x14c5b6ff,
-    0x68a247ff
+    0x68a247ff}
 };
 
 std::array<Seed, 10> seeds;
@@ -112,13 +120,13 @@ int rand_between(int min, int max)
     return distrib(gen);
 }
 
-void draw_circle(vec2 pos, int r, u32 color)
+void draw_circle(vec2 pos, float r, u32 color)
 {
     SDL_Rect rect = {
-        .x = pos.x - r,
-        .y = pos.y - r,
-        .w = r * 2,
-        .h = r * 2
+        .x = static_cast<int>(pos.x - r),
+        .y = static_cast<int>(pos.y - r),
+        .w = static_cast<int>(r * 2.0f),
+        .h = static_cast<int>(r * 2.0f)
     };
 
     if (rect.y < 0)
@@ -141,7 +149,11 @@ void draw_circle(vec2 pos, int r, u32 color)
              x < rect.w + rect.x;
              ++x)
         {
-            vec2 point{.x = x, .y = y};
+            vec2 point
+            {
+                .x = static_cast<float>(x), 
+                .y = static_cast<float>(y)
+            };
 
             if (vec2::len(point - pos) < r2)
             {
@@ -158,13 +170,13 @@ void randomize_seeds()
          ++i)
     {
         auto& seed = seeds[i];
-        seed.pos.x = rand_between(0, WINDOW_WIDTH);
-        seed.pos.y = rand_between(0, WINDOW_HEIGHT);
+        seed.pos.x = static_cast<float>(rand_between(0, WINDOW_WIDTH));
+        seed.pos.y = static_cast<float>(rand_between(0, WINDOW_HEIGHT));
 
         seed.vel.x = 0;
         seed.vel.y = 0;
 
-        seed.r = 5;
+        seed.r = 5.0f;
 #if 0
         auto index = rand_between(0, palette.size() - 1);
 #else
@@ -173,18 +185,17 @@ void randomize_seeds()
         seed.color = palette[index];
     }
 
-    seeds[0].pos.x = 70;
-    seeds[0].pos.y = 100;
-    seeds[0].vel.x = 100;
-    seeds[0].vel.y = 0;
-    seeds[0].r = 5;
+    seeds[0].pos.x = 70.0f;
+    seeds[0].pos.y = 100.0f;
+    seeds[0].vel.x = 100.0f;
+    seeds[0].vel.y = 0.0f;
+    seeds[0].r = 5.0f;
 }
 
 void update_seed_position(float dt)
 {
     Seed& seed = seeds[0];
-    seed.pos.x += static_cast<int>((static_cast<float>(seed.vel.x) * dt));
-    seed.pos.y += static_cast<int>((static_cast<float>(seed.vel.y) * dt));
+    seed.pos += seed.vel * dt;
 
     if (seed.pos.x + seed.r > WINDOW_WIDTH)
     {
@@ -223,7 +234,10 @@ void render_voronoi_helper(const SDL_Rect& region)
              x < region.w + region.x;
              ++x)
         {
-            vec2 a = {.x = x, .y = y};
+            vec2 a {
+                .x = static_cast<float>(x), 
+                .y = static_cast<float>(y)
+            };
             vec2* b = &seeds[0].pos;
 
             //auto nearest = len(a - b);
@@ -369,10 +383,9 @@ int main()
 
         SDL_RenderPresent(renderer);
         
-        //SDL_Delay(30);
+        //SDL_Delay(300);
         auto end = SDL_GetTicks64();
-        dt = (end - begin) / 1000.0f; // in sec
-        //cout << "dt: " << dt << "\n";
+        dt = static_cast<float>(end - begin) / 1000.0f; // in sec
     }
 
     return 0;
