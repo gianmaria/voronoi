@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <string>
+#include <thread>
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
@@ -62,7 +63,7 @@ struct Seed
 };
 
 
-constexpr int WINDOW_WIDTH = 800;
+constexpr int WINDOW_WIDTH  = 800;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
 
@@ -94,17 +95,31 @@ int rand_between(int min, int max)
 
 void draw_circle(vec2 pos, int r, u32 color)
 {
-    vec2 top_left{.x = pos.x - r, .y = pos.y + r};
-    vec2 bottom_right{.x = pos.x + r, .y = pos.y - r};
+    SDL_Rect rect = {
+        .x = pos.x - r,
+        .y = pos.y - r,
+        .w = r * 2,
+        .h = r * 2
+    };
+
+    if (rect.y < 0)
+        rect.y = 0;
+    if (rect.y + rect.h > WINDOW_HEIGHT)
+        rect.h = WINDOW_HEIGHT - rect.y;
+
+    if (rect.x < 0)
+        rect.x = 0;
+    if (rect.x + rect.w > WINDOW_WIDTH)
+        rect.w = WINDOW_WIDTH - rect.x;
 
     u32 r2 = static_cast<u32>(r * r);
 
-    for (int y = top_left.y;
-         y > bottom_right.y;
-         --y)
+    for (int y = rect.y;
+         y < rect.h + rect.y;
+         ++y)
     {
-        for (int x = top_left.x;
-             x < bottom_right.x + r;
+        for (int x = rect.x;
+             x < rect.w + rect.x;
              ++x)
         {
             vec2 point{.x = x, .y = y};
@@ -144,13 +159,14 @@ void render_voronoi_helper(const SDL_Rect& region)
 {
     // top-left -> 0, 0
     // y increasing towards bottom
+#if 1
 
-    for (int y = region.y; 
-         y < region.h + region.y; 
+    for (int y = region.y;
+         y < region.h + region.y;
          ++y)
     {
-        for (int x = region.x; 
-             x < region.w + region.x; 
+        for (int x = region.x;
+             x < region.w + region.x;
              ++x)
         {
             vec2 a = {.x = x, .y = y};
@@ -179,10 +195,12 @@ void render_voronoi_helper(const SDL_Rect& region)
         }
     }
 
+
     for (const auto& seed : seeds)
     {
         draw_circle(seed.pos, seed.r, 0x000000ff);
     }
+#endif // 0
 
 }
 
@@ -190,13 +208,51 @@ void render_voronoi(SDL_Renderer* renderer, SDL_Texture* texture)
 {
     init_seeds();
 
+    //memset(pixels, 0xcc, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+
     {
         Timer t("render voronoi");
-        render_voronoi_helper({.x = 0, .y = 0, .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+        std::array<std::thread, 2> threads;
+
+        for (size_t i = 0;
+             i < threads.size();
+             ++i)
+        {
+            SDL_Rect region;
+            region.x = 0;
+            region.y = WINDOW_HEIGHT / threads.size() * i;
+            region.w = WINDOW_WIDTH;
+            region.h = WINDOW_HEIGHT / threads.size();
+
+            threads[i] = std::thread(render_voronoi_helper, region);
+        }
+
+        /*render_voronoi_helper({.x = 0,
+                              .y = WINDOW_HEIGHT / 4 * 0,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 1,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 2,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
+
+        render_voronoi_helper({.x = 0, 
+                              .y = WINDOW_HEIGHT / 4 * 3,
+                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});*/
+
+        for (auto& thread : threads)
+        {
+            if (thread.joinable())
+                thread.join();
+        }
+
     }
 
     {
-        Timer t("drawing texture business");
+        //Timer t("drawing texture business");
 
         SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
         SDL_RenderClear(renderer);
@@ -241,9 +297,9 @@ int main()
     }
 
     SDL_Texture* texture = SDL_CreateTexture(renderer,
-                                                    SDL_PIXELFORMAT_RGBA8888,
-                                                    SDL_TEXTUREACCESS_STREAMING,
-                                                    WINDOW_WIDTH, WINDOW_HEIGHT);
+                                             SDL_PIXELFORMAT_RGBA8888,
+                                             SDL_TEXTUREACCESS_STREAMING,
+                                             WINDOW_WIDTH, WINDOW_HEIGHT);
 
     render_voronoi(renderer, texture);
 
