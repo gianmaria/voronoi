@@ -21,67 +21,6 @@ constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
 
 
-struct vec2
-{
-    int x;
-    int y;
-};
-
-struct Seed
-{
-    vec2 pos;
-    vec2 vel;
-    int r;
-    unsigned int color;
-};
-
-vec2 operator-(const vec2& lhs, const vec2& rhs)
-{
-    vec2 res{};
-    res.x = lhs.x - rhs.x;
-    res.y = lhs.y - rhs.y;
-    return res;
-}
-
-unsigned int len(const vec2& vec)
-{
-    return static_cast<unsigned>(vec.x * vec.x + vec.y * vec.y);
-}
-
-
-int rand_between(int min, int max)
-{
-    static std::random_device rd;  //Will be used to obtain a seed for the random number engine
-    static std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
-    std::uniform_int_distribution<int> distrib(min, max);
-    return distrib(gen);
-}
-
-void draw_circle(SDL_Renderer* renderer, vec2 pos, int r, u32 color)
-{
-    vec2 top_left{.x = pos.x - r, .y = pos.y + r};
-    vec2 bottom_right{.x = pos.x + r, .y = pos.y - r};
-
-    for (int y = top_left.y;
-         y > bottom_right.y;
-         --y)
-    {
-        for (int x = top_left.x;
-             x < bottom_right.x + r;
-             ++x)
-        {
-            vec2 point{.x = x, .y = y};
-
-            if (len(point - pos) < static_cast<unsigned>(r * r))
-            {
-                uint8_t* col = reinterpret_cast<uint8_t*>(&color);
-                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
-                SDL_RenderDrawPoint(renderer, x, y);
-            }
-        }
-    }
-}
-
 struct Timer
 {
     Timer(const string& name) :name(name)
@@ -98,6 +37,72 @@ struct Timer
     Uint64 begin;
     string name;
 };
+
+
+struct vec2
+{
+    int x;
+    int y;
+
+    static u32 len(const vec2& vec)
+    {
+        return static_cast<u32>(vec.x * vec.x + vec.y * vec.y);
+    }
+};
+
+vec2 operator-(const vec2& lhs, const vec2& rhs)
+{
+    vec2 res{};
+    res.x = lhs.x - rhs.x;
+    res.y = lhs.y - rhs.y;
+    return res;
+}
+
+struct Seed
+{
+    vec2 pos;
+    vec2 vel;
+    int r;
+    unsigned int color;
+};
+
+
+
+
+int rand_between(int min, int max)
+{
+    static std::random_device rd;  //Will be used to obtain a seed for the random number engine
+    static std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+    std::uniform_int_distribution<int> distrib(min, max);
+    return distrib(gen);
+}
+
+void draw_circle(SDL_Renderer* renderer, vec2 pos, int r, u32 color)
+{
+    vec2 top_left{.x = pos.x - r, .y = pos.y + r};
+    vec2 bottom_right{.x = pos.x + r, .y = pos.y - r};
+
+    u32 r2 = static_cast<u32>(r * r);
+
+    for (int y = top_left.y;
+         y > bottom_right.y;
+         --y)
+    {
+        for (int x = top_left.x;
+             x < bottom_right.x + r;
+             ++x)
+        {
+            vec2 point{.x = x, .y = y};
+
+            if (vec2::len(point - pos) < r2)
+            {
+                uint8_t* col = reinterpret_cast<uint8_t*>(&color);
+                SDL_SetRenderDrawColor(renderer, col[3], col[2], col[1], col[0]);
+                SDL_RenderDrawPoint(renderer, x, y);
+            }
+        }
+    }
+}
 
 void render_voronoi(SDL_Renderer* renderer)
 {
