@@ -44,6 +44,13 @@ struct vec2
     {
         return static_cast<u32>(vec.x * vec.x + vec.y * vec.y);
     }
+
+    vec2& operator+=(const vec2& other)
+    {
+        x += other.x;
+        y += other.y;
+        return *this;
+    }
 };
 
 vec2 operator-(const vec2& lhs, const vec2& rhs)
@@ -51,6 +58,14 @@ vec2 operator-(const vec2& lhs, const vec2& rhs)
     vec2 res{};
     res.x = lhs.x - rhs.x;
     res.y = lhs.y - rhs.y;
+    return res;
+}
+
+vec2 operator+(const vec2& lhs, const vec2& rhs)
+{
+    vec2 res{};
+    res.x = lhs.x + rhs.x;
+    res.y = lhs.y + rhs.y;
     return res;
 }
 
@@ -67,6 +82,7 @@ constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
 constexpr int THREAD_COUNT = 4;
+constexpr int PITCH = WINDOW_WIDTH * 4;
 
 static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
 
@@ -133,7 +149,7 @@ void draw_circle(vec2 pos, int r, u32 color)
     }
 }
 
-void init_seeds()
+void randomize_seeds()
 {
     for (size_t i = 0;
          i < seeds.size();
@@ -154,6 +170,17 @@ void init_seeds()
 #endif
         seed.color = palette[index];
     }
+
+    seeds[0].pos.x = 0;
+    seeds[0].pos.y = 0;
+    seeds[0].vel.x = 5;
+    seeds[0].vel.y = 6;
+}
+
+void update_seed_position()
+{
+    Seed& seed = seeds[0];
+    seed.pos += seed.vel;
 }
 
 void render_voronoi_helper(const SDL_Rect& region)
@@ -202,7 +229,7 @@ void render_voronoi_helper(const SDL_Rect& region)
     }
 }
 
-void render_voronoi(SDL_Renderer* renderer, SDL_Texture* texture)
+void render_voronoi()
 {
     std::array<std::thread, THREAD_COUNT> threads;
 
@@ -261,9 +288,9 @@ int main()
                                              SDL_PIXELFORMAT_RGBA8888,
                                              SDL_TEXTUREACCESS_STREAMING,
                                              WINDOW_WIDTH, WINDOW_HEIGHT);
-    init_seeds();
+    randomize_seeds();
 
-    render_voronoi(renderer, texture);
+    render_voronoi();
 
     bool done = false;
     while (!done)
@@ -286,17 +313,19 @@ int main()
                 }
                 else if (e.key.keysym.sym == SDLK_F5)
                 {
-                    render_voronoi(renderer, texture);
+                    randomize_seeds();
                 }
             }
         }
 
-        render_voronoi(renderer, texture);
+        update_seed_position();
+
+        render_voronoi();
 
         SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
         SDL_RenderClear(renderer);
 
-        SDL_UpdateTexture(texture, NULL, pixels, WINDOW_WIDTH * 4);
+        SDL_UpdateTexture(texture, NULL, pixels, PITCH);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
 
         SDL_RenderPresent(renderer);
