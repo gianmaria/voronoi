@@ -175,15 +175,16 @@ void randomize_seeds()
 
     seeds[0].pos.x = 70;
     seeds[0].pos.y = 100;
-    seeds[0].vel.x = 3;
-    seeds[0].vel.y = 4;
+    seeds[0].vel.x = 100;
+    seeds[0].vel.y = 0;
     seeds[0].r = 5;
 }
 
-void update_seed_position()
+void update_seed_position(float dt)
 {
     Seed& seed = seeds[0];
-    seed.pos += seed.vel;
+    seed.pos.x += static_cast<int>((static_cast<float>(seed.vel.x) * dt));
+    seed.pos.y += static_cast<int>((static_cast<float>(seed.vel.y) * dt));
 
     if (seed.pos.x + seed.r > WINDOW_WIDTH)
     {
@@ -320,9 +321,12 @@ int main()
 
     bool done = false;
     bool pause = false;
+    float dt = 0.3f;
 
     while (!done)
     {
+        auto begin = SDL_GetTicks64();
+
         SDL_Event e = {};
         while (SDL_PollEvent(&e))
         {
@@ -352,7 +356,7 @@ int main()
 
         if (!pause)
         {
-            update_seed_position();
+            update_seed_position(dt);
 
             render_voronoi();
         }
@@ -364,8 +368,11 @@ int main()
         SDL_RenderCopy(renderer, texture, NULL, NULL);
 
         SDL_RenderPresent(renderer);
-
-        SDL_Delay(30);
+        
+        //SDL_Delay(30);
+        auto end = SDL_GetTicks64();
+        dt = (end - begin) / 1000.0f; // in sec
+        //cout << "dt: " << dt << "\n";
     }
 
     return 0;
