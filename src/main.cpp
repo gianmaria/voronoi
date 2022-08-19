@@ -317,6 +317,8 @@ int main()
     render_voronoi();
 
     bool done = false;
+    bool pause = false;
+
     while (!done)
     {
         SDL_Event e = {};
@@ -339,12 +341,19 @@ int main()
                 {
                     randomize_seeds();
                 }
+                else if (e.key.keysym.sym == SDLK_SPACE)
+                {
+                    pause = !pause;
+                }
             }
         }
 
-        update_seed_position();
+        if (!pause)
+        {
+            update_seed_position();
 
-        render_voronoi();
+            render_voronoi();
+        }
 
         SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
         SDL_RenderClear(renderer);
