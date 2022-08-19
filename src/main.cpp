@@ -171,16 +171,40 @@ void randomize_seeds()
         seed.color = palette[index];
     }
 
-    seeds[0].pos.x = 0;
-    seeds[0].pos.y = 0;
-    seeds[0].vel.x = 5;
-    seeds[0].vel.y = 6;
+    seeds[0].pos.x = 70;
+    seeds[0].pos.y = 100;
+    seeds[0].vel.x = 3;
+    seeds[0].vel.y = 4;
+    seeds[0].r = 5;
 }
 
 void update_seed_position()
 {
     Seed& seed = seeds[0];
     seed.pos += seed.vel;
+
+    if (seed.pos.x + seed.r > WINDOW_WIDTH)
+    {
+        seed.pos.x = WINDOW_WIDTH - seed.r;
+        seed.vel.x *= -1;
+    }
+    else if (seed.pos.x - seed.r < 0)
+    {
+        seed.pos.x = 0 + seed.r;
+        seed.vel.x *= -1;
+    }
+
+    if (seed.pos.y + seed.r > WINDOW_HEIGHT)
+    {
+        seed.pos.y = WINDOW_HEIGHT - seed.r;
+        seed.vel.y *= -1;
+    }
+    else if (seed.pos.y - seed.r < 0)
+    {
+        seed.pos.y = 0 + seed.r;
+        seed.vel.y *= -1;
+    }
+
 }
 
 void render_voronoi_helper(const SDL_Rect& region)
