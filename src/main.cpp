@@ -63,9 +63,10 @@ struct Seed
 };
 
 
-constexpr int WINDOW_WIDTH  = 800;
+constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
+constexpr int THREAD_COUNT = 4;
 
 static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
 
@@ -157,9 +158,8 @@ void init_seeds()
 
 void render_voronoi_helper(const SDL_Rect& region)
 {
-    // top-left -> 0, 0
-    // y increasing towards bottom
-#if 1
+    // NOTE: top-left -> 0, 0
+    //       y increasing towards bottom
 
     for (int y = region.y;
          y < region.h + region.y;
@@ -200,68 +200,29 @@ void render_voronoi_helper(const SDL_Rect& region)
     {
         draw_circle(seed.pos, seed.r, 0x000000ff);
     }
-#endif // 0
-
 }
 
 void render_voronoi(SDL_Renderer* renderer, SDL_Texture* texture)
 {
-    init_seeds();
+    std::array<std::thread, THREAD_COUNT> threads;
 
-    //memset(pixels, 0xcc, WINDOW_WIDTH * WINDOW_HEIGHT * 4);
-
+    for (size_t i = 0;
+         i < threads.size();
+         ++i)
     {
-        Timer t("render voronoi");
-        std::array<std::thread, 2> threads;
+        SDL_Rect region;
+        region.x = 0;
+        region.y = WINDOW_HEIGHT / THREAD_COUNT * i;
+        region.w = WINDOW_WIDTH;
+        region.h = WINDOW_HEIGHT / THREAD_COUNT;
 
-        for (size_t i = 0;
-             i < threads.size();
-             ++i)
-        {
-            SDL_Rect region;
-            region.x = 0;
-            region.y = WINDOW_HEIGHT / threads.size() * i;
-            region.w = WINDOW_WIDTH;
-            region.h = WINDOW_HEIGHT / threads.size();
-
-            threads[i] = std::thread(render_voronoi_helper, region);
-        }
-
-        /*render_voronoi_helper({.x = 0,
-                              .y = WINDOW_HEIGHT / 4 * 0,
-                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
-
-        render_voronoi_helper({.x = 0, 
-                              .y = WINDOW_HEIGHT / 4 * 1,
-                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
-
-        render_voronoi_helper({.x = 0, 
-                              .y = WINDOW_HEIGHT / 4 * 2,
-                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});
-
-        render_voronoi_helper({.x = 0, 
-                              .y = WINDOW_HEIGHT / 4 * 3,
-                              .w = WINDOW_WIDTH, .h = WINDOW_HEIGHT / 4});*/
-
-        for (auto& thread : threads)
-        {
-            if (thread.joinable())
-                thread.join();
-        }
-
+        threads[i] = std::thread(render_voronoi_helper, region);
     }
 
+    for (auto& thread : threads)
     {
-        //Timer t("drawing texture business");
-
-        SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
-        SDL_RenderClear(renderer);
-
-        SDL_UpdateTexture(texture, NULL, pixels, WINDOW_WIDTH * 4);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
-
-        SDL_RenderPresent(renderer);
-
+        if (thread.joinable())
+            thread.join();
     }
 }
 
@@ -300,6 +261,7 @@ int main()
                                              SDL_PIXELFORMAT_RGBA8888,
                                              SDL_TEXTUREACCESS_STREAMING,
                                              WINDOW_WIDTH, WINDOW_HEIGHT);
+    init_seeds();
 
     render_voronoi(renderer, texture);
 
@@ -307,7 +269,7 @@ int main()
     while (!done)
     {
         SDL_Event e = {};
-        while (SDL_WaitEvent(&e))
+        while (SDL_PollEvent(&e))
         {
             if (e.type == SDL_QUIT)
             {
@@ -329,7 +291,17 @@ int main()
             }
         }
 
-        //SDL_Delay(10);
+        render_voronoi(renderer, texture);
+
+        SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255); // magenta
+        SDL_RenderClear(renderer);
+
+        SDL_UpdateTexture(texture, NULL, pixels, WINDOW_WIDTH * 4);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+        SDL_RenderPresent(renderer);
+
+        SDL_Delay(30);
     }
 
     return 0;
