@@ -9,6 +9,7 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 
 using std::cout;
 using std::endl;
@@ -91,6 +92,7 @@ constexpr int WINDOW_HEIGHT = 600;
 constexpr int NO_FLAGS = 0;
 constexpr int THREAD_COUNT = 4;
 constexpr int PITCH = WINDOW_WIDTH * 4;
+constexpr int SEED_COUNT = 20;
 
 static u32 pixels[WINDOW_HEIGHT][WINDOW_WIDTH];
 
@@ -109,7 +111,9 @@ constexpr std::array<u32, 10> palette = {
     0x68a247ff}
 };
 
-std::array<Seed, 10> seeds;
+std::array<Seed, SEED_COUNT> seeds;
+SDL_Color white = {255, 255, 255, 255};
+SDL_Color black = {0, 0, 0, 255};
 
 
 int rand_between(int min, int max)
@@ -151,7 +155,7 @@ void draw_circle(vec2 pos, float r, u32 color)
         {
             vec2 point
             {
-                .x = static_cast<float>(x), 
+                .x = static_cast<float>(x),
                 .y = static_cast<float>(y)
             };
 
@@ -182,13 +186,13 @@ void randomize_seeds()
 #else
         auto index = i;
 #endif
-        seed.color = palette[index];
+        seed.color = palette[index % palette.size()];
     }
 
-    seeds[0].pos.x = 70.0f;
-    seeds[0].pos.y = 100.0f;
-    seeds[0].vel.x = 100.0f;
-    seeds[0].vel.y = 0.0f;
+    //seeds[0].pos.x = 70.0f;
+    //seeds[0].pos.y = 100.0f;
+    seeds[0].vel.x = 30.0f;
+    seeds[0].vel.y = 35.0f;
     seeds[0].r = 5.0f;
 }
 
@@ -234,8 +238,8 @@ void render_voronoi_helper(const SDL_Rect& region)
              x < region.w + region.x;
              ++x)
         {
-            vec2 a {
-                .x = static_cast<float>(x), 
+            vec2 a{
+                .x = static_cast<float>(x),
                 .y = static_cast<float>(y)
             };
             vec2* b = &seeds[0].pos;
@@ -294,10 +298,49 @@ void render_voronoi()
     }
 }
 
+void draw_text(SDL_Renderer* renderer,
+               TTF_Font* font,
+               const char* msg)
+{
+
+    // as TTF_RenderText_Solid could only be used on
+    // SDL_Surface then you have to create the surface first
+    SDL_Surface* surface =
+        TTF_RenderText_Solid(font, msg, black);
+
+    // now you can convert it into a texture
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+    SDL_Rect message_rect{}; //create a rect
+    TTF_SizeText(font, msg,
+                 &message_rect.w,
+                 &message_rect.h);
+
+    SDL_RenderCopy(renderer, texture, NULL, &message_rect);
+
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+
 
 int main()
 {
     SDL_SetMainReady();
+
+    if (TTF_Init() < 0)
+    {
+        cout << "[ERROR] cannot initialize TTF: " << SDL_GetError() << endl;
+        std::exit(1);
+    }
+
+    TTF_Font* font = TTF_OpenFont("font/FreeSans.ttf", 20);
+
+    if (!font)
+    {
+        cout << "[ERROR] cannot open font: " << SDL_GetError() << endl;
+        std::exit(1);
+    }
+
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -336,6 +379,10 @@ int main()
     bool done = false;
     bool pause = false;
     float dt = 0.3f;
+    char buffer[512]{};
+    u32 counter = 0;
+    float cached_dt = 0;
+    float cached_fps = 0;
 
     while (!done)
     {
@@ -381,9 +428,18 @@ int main()
         SDL_UpdateTexture(texture, NULL, pixels, PITCH);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
 
+        if (counter++ % 10 == 0)
+        {
+            cached_dt = dt;
+            cached_fps = 1.0f / dt;
+        }
+
+        snprintf(buffer, sizeof(buffer), "%.3f ms - %.2f FPS", cached_dt, cached_fps);
+        draw_text(renderer, font, buffer);
+
         SDL_RenderPresent(renderer);
-        
-        //SDL_Delay(300);
+
+        SDL_Delay(10);
         auto end = SDL_GetTicks64();
         dt = static_cast<float>(end - begin) / 1000.0f; // in sec
     }
